@@ -208,26 +208,32 @@ class MtpCamera(private val context: Context, private val diagnostics: Diagnosti
                             storage?.maxCapacity, storage?.freeSpace)
                     }
                     currentCoroutineContext().ensureActive()
-                    if (!usbManager.deviceList.containsKey(device.deviceName)) throw CameraUnavailableException()
                     val serial = info.serialNumber?.takeIf { it.isNotBlank() }
                     val session = Session(UUID.randomUUID().toString(), device, connection, mtp,
                         serial?.let { sha256("${info.manufacturer}\u0000${info.model}\u0000$it") },
                         info.model?.takeIf { it.isNotBlank() }, info.operationsSupported?.toSet().orEmpty())
-                    active = session
-                    opened = null
-                    mutableState.value = ConnectionState(ConnectionPhase.CONNECTED,
-                        if (storages.isEmpty()) "相机已连接，但没有可访问的存储，请检查 SD 卡" else "相机已连接",
-                        session.model, session.id, storages,
-                        describe(listOf(device)) + "\n支持的读取操作：" + session.operations
-                            .filter { it in setOf(0x1001, 0x1004, 0x1005, 0x1007, 0x1008, 0x1009, 0x100a, 0x101b, 0x95c1) }
-                            .joinToString { "0x%04x".format(it) })
-                    diagnostics.event("mtp_connected")
+                    // Publish on the same thread as stop/detach so a cancelled connection cannot become active.
+                    withContext(Dispatchers.Main.immediate) {
+                        if (!usbManager.deviceList.containsKey(device.deviceName)) throw CameraUnavailableException()
+                        active = session
+                        opened = null
+                        if (openingConnection === connection) openingConnection = null
+                        mutableState.value = ConnectionState(ConnectionPhase.CONNECTED,
+                            if (storages.isEmpty()) "相机已连接，但没有可访问的存储，请检查 SD 卡" else "相机已连接",
+                            session.model, session.id, storages,
+                            describe(listOf(device)) + "\n支持的读取操作：" + session.operations
+                                .filter { it in setOf(0x1001, 0x1004, 0x1005, 0x1007, 0x1008, 0x1009, 0x100a, 0x101b, 0x95c1) }
+                                .joinToString { "0x%04x".format(it) })
+                        diagnostics.event("mtp_connected")
+                    }
                 } catch (error: Exception) {
-                    if (opened != null) opened.close() else openedConnection?.close()
+                    val failedDevice = opened
+                    if (failedDevice != null) failedDevice.close() else openedConnection?.close()
                     if (error is kotlinx.coroutines.CancellationException) throw error
-                    currentCoroutineContext().ensureActive()
-                    diagnostics.event("connection_failed_$stage", error)
-                    failure("无法打开相机。请关闭占用相机的系统导入界面或其他应用，重新插拔后重试", error)
+                    withContext(Dispatchers.Main.immediate) {
+                        diagnostics.event("connection_failed_$stage", error)
+                        failure("无法打开相机。请关闭占用相机的系统导入界面或其他应用，重新插拔后重试", error)
+                    }
                 } finally {
                     if (openingConnection === openedConnection) openingConnection = null
                 }
@@ -353,7 +359,7 @@ class MtpCamera(private val context: Context, private val diagnostics: Diagnosti
 
     suspend fun transfer(photo: Photo, descriptor: ParcelFileDescriptor, onBytes: (Long) -> Unit) {
         read(photo.sessionId) { session ->
-            val actual = session.mtp.getObjectInfo(photo.handle) ?: throw CameraUnavailableException()
+            val actual = session.mtp.getObjectInfo(photo.handle) ?: throw IOException("object_info")
             if (actual.name != photo.name || actual.compressedSizeLong != photo.size || actual.storageId != photo.storageId ||
                 actual.parent != photo.parentHandle || actual.dateCreated.takeIf { it > 0 } != photo.capturedAt) {
                 throw IOException("stale_object")

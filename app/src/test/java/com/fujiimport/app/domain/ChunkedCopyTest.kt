@@ -2,7 +2,9 @@ package com.fujiimport.app.domain
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -67,5 +69,30 @@ class ChunkedCopyTest {
         assertEquals(stoppedAt, reads)
         assertEquals(2, reads)
         assertEquals(256 * 1024, output.size())
+    }
+    @Test fun cancellationDuringReadDoesNotWriteReturnedBytes() = runTest {
+        val output = ByteArrayOutputStream()
+        val task = launch {
+            copyExactBytes(100, output, { _, requested, _ ->
+                currentCoroutineContext().cancel()
+                requested.toLong()
+            }, {})
+        }
+        task.join()
+        assertTrue(task.isCancelled)
+        assertEquals(0, output.size())
+    }
+    @Test fun cancellationAfterLastChunkDoesNotFlush() = runTest {
+        var flushed = false
+        val output = object : ByteArrayOutputStream() {
+            override fun flush() { flushed = true }
+        }
+        val task = launch {
+            copyExactBytes(100, output, { _, requested, _ -> requested.toLong() }, { coroutineContext.cancel() })
+        }
+        task.join()
+        assertTrue(task.isCancelled)
+        assertEquals(100, output.size())
+        assertFalse(flushed)
     }
 }

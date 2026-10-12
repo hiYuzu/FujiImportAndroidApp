@@ -21,10 +21,12 @@ suspend fun copyExactBytes(
         currentCoroutineContext().ensureActive()
         val requested = minOf(buffer.size.toLong(), size - offset).toInt()
         val received = read(offset, requested, buffer)
+        currentCoroutineContext().ensureActive()
         if (received <= 0 || received > requested) throw PartialReadException()
         output.write(buffer, 0, received.toInt())
         offset += received
         onProgress(offset)
     }
+    currentCoroutineContext().ensureActive()
     output.flush()
 }

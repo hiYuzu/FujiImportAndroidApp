@@ -115,7 +115,12 @@ class PhotoImages(
     }
 
     suspend fun clear() = previewLock.withLock {
-        thumbnails.clear(); previews.clear(); memory.evictAll()
+        // Wait for both thumbnail writers before deleting their temporary files.
+        thumbnailRequests.withPermit {
+            thumbnailRequests.withPermit {
+                thumbnails.clear(); previews.clear(); memory.evictAll()
+            }
+        }
     }
 
     suspend fun diskSize(): Long = thumbnails.size() + previews.size()
