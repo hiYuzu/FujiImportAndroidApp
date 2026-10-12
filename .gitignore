@@ -1,0 +1,31 @@
+# 本地环境与缓存
+.gradle/
+.kotlin/
+.idea/
+*.iml
+local.properties
+.tools/
+.externalNativeBuild/
+.cxx/
+
+# 构建与调试产物
+**/build/
+*.apk
+*.aab
+*.apks
+*.log
+*.hprof
+hs_err_pid*
+replay_pid*
+captures/
+
+# 签名材料
+signing.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# 系统文件
+.DS_Store
+Thumbs.db

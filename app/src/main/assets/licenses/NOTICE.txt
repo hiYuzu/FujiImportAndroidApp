@@ -1,0 +1,33 @@
+Third-party components used by Fuji Import
+
+AndroidX (including Jetpack Compose, Activity, Lifecycle, DataStore, Core,
+and ExifInterface, except the separately licensed Protobuf runtime):
+Apache License 2.0. Copyright the respective authors
+and the Android Open Source Project.
+
+Kotlin standard library, kotlinx.coroutines, kotlinx.serialization, and
+JetBrains annotations: Apache License 2.0.
+Copyright JetBrains s.r.o. and contributors.
+
+Okio and Guava ListenableFuture: Apache License 2.0.
+Copyright Square, Inc.; Google LLC and contributors.
+
+The Protobuf runtime repackaged by
+androidx.datastore:datastore-preferences-external-protobuf:1.2.1:
+BSD 3-Clause. Its original notice and license are reproduced without
+changes in Protobuf-BSD-3-Clause.txt.
+
+Native runtime components supplied by AndroidX:
+- androidx.graphics:graphics-path:1.0.1 (libandroidx.graphics.path.so)
+- androidx.datastore:datastore-core-android:1.2.1 (libdatastore_shared_counter.so)
+Their published Maven POMs declare the Apache License 2.0.
+Graphics path source notices:
+Copyright 2022 The Android Open Source Project
+Copyright (C) 2006 The Android Open Source Project
+
+The full Apache License 2.0 is included in Apache-2.0.txt.
+
+Project and source information:
+https://android.googlesource.com/platform/frameworks/support/
+https://github.com/JetBrains/kotlin
+https://github.com/Kotlin/kotlinx.coroutines
