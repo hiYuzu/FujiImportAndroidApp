@@ -15,7 +15,7 @@ class UserPreferences(private val context: Context) {
     private val ascendingKey = booleanPreferencesKey("ascending")
     val ascending = context.preferences.data.catch { error ->
         if (error is IOException) emit(emptyPreferences()) else throw error
-    }.map { it[ascendingKey] ?: false }
+    }.map { it[ascendingKey] ?: true }
 
     suspend fun setAscending(value: Boolean) { context.preferences.edit { it[ascendingKey] = value } }
 }

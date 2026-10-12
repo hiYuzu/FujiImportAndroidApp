@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class GalleryGroup(val date: String, val photos: List<Photo>)
-data class GalleryState(val photos: List<Photo> = emptyList(), val groups: List<GalleryGroup> = emptyList(), val ascending: Boolean = false)
+data class GalleryState(val photos: List<Photo> = emptyList(), val groups: List<GalleryGroup> = emptyList(), val ascending: Boolean = true)
 data class SelectionState(val active: Boolean = false, val ids: Set<String> = emptySet())
 data class PreviewSession(val photos: List<Photo>, val initialIndex: Int)
 

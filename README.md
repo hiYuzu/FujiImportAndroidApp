@@ -16,7 +16,9 @@ Codex 检查 SDK/JDK，并按实际 SDK 路径生成本地 `local.properties`。
 .\gradlew.bat assembleDebug testDebugUnitTest lintDebug assembleRelease --console=plain
 ```
 
-APK 位于 `app/build/outputs/apk/{debug,release}/`；Release 签名配置见 `signing.properties.example`，当前 Release 未签名。
+APK 位于 `app/build/outputs/apk/{debug,release}/`；正式包为 `app/build/outputs/apk/release/app-release.apk`，使用本地 `signing.properties` 和 `.signing/fuji-import-release.jks` 签名，配置示例见 `signing.properties.example`。密钥及配置已由 Git 忽略，请一并备份，后续更新沿用同一密钥。
+
+Debug 与 Release 签名不同，首次从调试版切换正式版需要卸载调试版，会清除应用内设置与导入记录；已导入到公共目录的照片保留。
 
 实机使用无线 ADB 配对、连接，然后执行：
 
