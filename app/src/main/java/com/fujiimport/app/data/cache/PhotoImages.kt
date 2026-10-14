@@ -75,18 +75,18 @@ class PhotoImages(
                 if (jpeg != null) {
                     try {
                         val result = fullImage(jpeg)
-                        return@withLock result.copy(note = "RAW 使用同目录 JPEG 伴生文件预览", metadata = emptyMap())
+                        return@withLock result.copy(note = "JPEG 伴生预览", metadata = emptyMap())
                     } catch (cancelled: CancellationException) { throw cancelled }
                     catch (error: Exception) { diagnostics.event("raw_companion_failed", error) }
                 }
                 val bitmap = thumbnail(photo)
-                return@withLock PreviewData(bitmap, if (bitmap == null) "RAW 预览不可用，仍可导入原文件" else "RAW 使用相机缩略图预览；原文件仍可导入", retryAllowed = bitmap == null)
+                return@withLock PreviewData(bitmap, if (bitmap == null) "预览不可用" else "相机缩略图", retryAllowed = bitmap == null)
             }
             try { fullImage(photo) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
                 diagnostics.event("preview_failed", error)
-                PreviewData(thumbnail(photo), "高清预览暂不可用，可重试或直接导入原文件", retryAllowed = true)
+                PreviewData(thumbnail(photo), "高清预览不可用", retryAllowed = true)
             }
         }
     }

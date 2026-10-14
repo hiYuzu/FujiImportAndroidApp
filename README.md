@@ -1,6 +1,6 @@
 # Fuji Import
 
-小米 Pad 6S Pro + FUJIFILM X-T5 的 USB 照片浏览与原文件导入应用。
+小米 Pad 6S Pro + FUJIFILM X-T5 的 USB 照片浏览与原文件导入应用，当前版本 1.0.1。
 
 ## 工程入口
 
@@ -17,6 +17,8 @@ Codex 检查 SDK/JDK，并按实际 SDK 路径生成本地 `local.properties`。
 ```
 
 APK 位于 `app/build/outputs/apk/{debug,release}/`；正式包为 `app/build/outputs/apk/release/app-release.apk`，使用本地 `signing.properties` 和 `.signing/fuji-import-release.jks` 签名，配置示例见 `signing.properties.example`。密钥及配置已由 Git 忽略，请一并备份，后续更新沿用同一密钥。
+
+缺少签名材料时生成 `app-release-unsigned.apk`，不能直接安装；恢复原密钥后重新构建即可覆盖更新。
 
 Debug 与 Release 签名不同，首次从调试版切换正式版需要卸载调试版，会清除应用内设置与导入记录；已导入到公共目录的照片保留。
 
