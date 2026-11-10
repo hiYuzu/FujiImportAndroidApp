@@ -36,7 +36,3 @@ adb shell am start -n com.fujiimport.app/.MainActivity
 - 重复判断结合源身份、元数据、成功记录及本地文件；未完成文件使用待发布状态和清理日志。
 - RAF 预览使用相机缩略图或同目录 JPEG；原生 `importFile` 取消需等待调用返回。
 - 第三方许可原文随包保存在 `app/src/main/assets/licenses/`。
-
-## 啧
-
-臭不要脸Claude，只是让你替我提交了一次代码，AI模型也没用你的，就把自己当成贡献者了
