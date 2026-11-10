@@ -38,7 +38,7 @@ class ImportEngine(
                     if (duplicate != null) {
                         withContext(NonCancellable) {
                             saveRecord(photo, ImportResult.SKIPPED, duplicate, "本地原文件已存在")
-                            progress = progress.copy(skipped = progress.skipped + 1, processed = progress.processed + 1)
+                            progress = progress.completed(photo, duplicate).copy(skipped = progress.skipped + 1, processed = progress.processed + 1)
                             current = null
                         }
                     } else {
@@ -55,7 +55,7 @@ class ImportEngine(
                             store.publish(photo, target)
                             pending = null
                             saveRecord(photo, ImportResult.SUCCESS, target.uri, null)
-                            progress = progress.copy(succeeded = progress.succeeded + 1, processed = progress.processed + 1)
+                            progress = progress.completed(photo, target.uri).copy(succeeded = progress.succeeded + 1, processed = progress.processed + 1)
                             current = null
                         }
                     }
@@ -68,7 +68,7 @@ class ImportEngine(
                     val message = when (error) {
                         is CameraUnavailableException -> "相机已断开"
                         is StorageFullException -> "存储空间不足"
-                        else -> stopReason ?: "读取或写入失败，请重试；详见诊断"
+                        else -> stopReason ?: "读取或写入失败"
                     }
                     withContext(NonCancellable) {
                         pending?.let { store.discard(it) }
@@ -77,6 +77,7 @@ class ImportEngine(
                         progress = progress.copy(
                             failed = progress.failed + 1, processed = progress.processed + 1,
                             errors = (progress.errors + "${photo.name}：$message").takeLast(20),
+                            stopReason = stopReason,
                         )
                         current = null
                     }
@@ -88,6 +89,7 @@ class ImportEngine(
             onProgress(progress)
             return progress
         } catch (cancelled: CancellationException) {
+            onProgress(progress.copy(phase = ImportPhase.CANCELLING, cleaning = true))
             withContext(NonCancellable) {
                 pending?.let { store.discard(it) }
                 current?.let { saveRecord(it, ImportResult.CANCELLED, null, "导入已取消") }

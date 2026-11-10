@@ -106,6 +106,8 @@ object FileNames {
 
 enum class ImportPhase { RUNNING, CANCELLING, FINISHED, CANCELLED }
 
+data class CompletedImport(val name: String, val uri: String, val mime: String)
+
 data class ImportProgress(
     val total: Int,
     val processed: Int = 0,
@@ -118,7 +120,27 @@ data class ImportProgress(
     val fileSize: Long? = null,
     val phase: ImportPhase = ImportPhase.RUNNING,
     val errors: List<String> = emptyList(),
+    val stopReason: String? = null,
+    val completedIds: Set<String> = emptySet(),
+    val recentFiles: List<CompletedImport> = emptyList(),
+    val cleaning: Boolean = false,
 ) {
+    val title: String get() = when {
+        phase == ImportPhase.CANCELLING -> "正在停止导入"
+        phase == ImportPhase.RUNNING -> "导入中"
+        stopReason != null -> "导入已停止"
+        phase == ImportPhase.CANCELLED -> "已取消导入"
+        failed == total && failed > 0 -> "导入失败"
+        failed > 0 -> "部分导入完成"
+        skipped == total && skipped > 0 -> "文件均已存在"
+        else -> "导入完成"
+    }
+
+    fun completed(photo: Photo, uri: String): ImportProgress = copy(
+        completedIds = completedIds + photo.id,
+        recentFiles = recentFiles.filterNot { it.mime == photo.format.mime } + CompletedImport(photo.name, uri, photo.format.mime),
+    )
+
     val isRunning: Boolean get() = phase == ImportPhase.RUNNING || phase == ImportPhase.CANCELLING
     val fraction: Float get() {
         if (total == 0) return 1f
@@ -131,5 +153,5 @@ data class ImportProgress(
 
 data class PendingImport(val uri: String, val displayName: String)
 
-class CameraUnavailableException : java.io.IOException("相机连接已失效，请重新连接")
+class CameraUnavailableException : java.io.IOException("相机连接已失效")
 class StorageFullException : java.io.IOException("平板存储空间不足")

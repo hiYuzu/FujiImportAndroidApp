@@ -17,7 +17,12 @@ import kotlinx.coroutines.launch
 
 data class GalleryGroup(val date: String, val photos: List<Photo>)
 data class GalleryState(val photos: List<Photo> = emptyList(), val groups: List<GalleryGroup> = emptyList(), val ascending: Boolean = true)
-data class SelectionState(val active: Boolean = false, val ids: Set<String> = emptySet())
+data class SelectionState(val active: Boolean = false, val ids: Set<String> = emptySet()) {
+    fun afterImport(completedIds: Set<String>, submittedIds: Set<String>): SelectionState {
+        val remaining = ids - completedIds.intersect(submittedIds)
+        return copy(ids = remaining, active = active && remaining.isNotEmpty())
+    }
+}
 data class PreviewSession(val photos: List<Photo>, val initialIndex: Int)
 
 class GalleryViewModel(application: Application) : AndroidViewModel(application) {
@@ -35,7 +40,17 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         GalleryState(photos, photos.groupBy { dateLabel(it.capturedAt) }.map { GalleryGroup(it.key, it.value) }, ascending)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GalleryState())
 
+    private var importSelectionIds = emptySet<String>()
+
     init {
+        viewModelScope.launch {
+            repository.progress.collect { progress ->
+                if (progress != null && !progress.isRunning) {
+                    selection.update { it.afterImport(progress.completedIds, importSelectionIds) }
+                    importSelectionIds = emptySet()
+                }
+            }
+        }
         viewModelScope.launch {
             var lastSession: String? = null
             repository.camera.state.collect { connection ->
@@ -64,17 +79,40 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun toggle(photo: Photo) { selection.update { it.copy(active = true, ids = if (photo.id in it.ids) it.ids - photo.id else it.ids + photo.id) } }
-    fun clearSelection() { selection.value = SelectionState() }
-    fun selectAll() { selection.update { it.copy(active = true, ids = it.ids + gallery.value.photos.map { photo -> photo.id }) } }
-    fun clearVisibleSelection() { selection.update { it.copy(ids = it.ids - gallery.value.photos.map { photo -> photo.id }.toSet()) } }
+    fun toggle(photo: Photo) {
+        importSelectionIds = importSelectionIds - photo.id
+        selection.update { it.copy(active = true, ids = if (photo.id in it.ids) it.ids - photo.id else it.ids + photo.id) }
+    }
+
+    fun clearSelection() {
+        importSelectionIds = emptySet()
+        selection.value = SelectionState()
+    }
+
+    fun selectAll() {
+        val visibleIds = gallery.value.photos.mapTo(HashSet()) { it.id }
+        importSelectionIds = importSelectionIds - visibleIds
+        selection.update { it.copy(active = true, ids = it.ids + visibleIds) }
+    }
+
+    fun clearVisibleSelection() {
+        val visibleIds = gallery.value.photos.mapTo(HashSet()) { it.id }
+        importSelectionIds = importSelectionIds - visibleIds
+        selection.update { it.copy(ids = it.ids - visibleIds) }
+    }
 
     fun importSelected() {
         val photos = repository.photos.value.photos.filter { it.id in selection.value.ids }
-        if (photos.isNotEmpty()) { repository.startImport(photos); showImport.value = true }
+        if (photos.isNotEmpty() && repository.progress.value?.isRunning != true) {
+            importSelectionIds = selection.value.ids
+            repository.startImport(photos)
+            showImport.value = true
+        }
     }
 
     fun importPhoto(photo: Photo) {
+        if (repository.progress.value?.isRunning == true) return
+        importSelectionIds = selection.value.ids.intersect(setOf(photo.id))
         preview.value = null
         repository.startImport(listOf(photo))
         showImport.value = true

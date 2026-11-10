@@ -29,3 +29,8 @@ signing.properties
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# 本地规格、验证记录与协作说明
+/docs/
+*.md
+!/README.md

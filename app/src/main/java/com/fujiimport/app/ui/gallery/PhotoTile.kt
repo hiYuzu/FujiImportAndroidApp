@@ -61,7 +61,7 @@ fun PhotoTile(photo: Photo, images: PhotoImages, selected: Boolean, imported: Bo
                 }
             }
         if (selected) {
-            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary.copy(alpha = .12f))
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary.copy(alpha = .03f))
                 .border(3.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small))
             Box(Modifier.align(Alignment.TopEnd).padding(8.dp).size(28.dp).background(MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {
                 Icon(painterResource(R.drawable.ic_check), null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary)

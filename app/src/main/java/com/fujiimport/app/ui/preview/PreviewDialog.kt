@@ -51,7 +51,7 @@ import com.fujiimport.app.util.dateTimeLabel
 import com.fujiimport.app.util.formatBytes
 import kotlinx.coroutines.CancellationException
 
-private data class PreviewLoad(val data: PreviewData = PreviewData(null, null), val loading: Boolean = true)
+private data class PreviewLoad(val data: PreviewData = PreviewData(null), val loading: Boolean = true)
 
 @Composable
 fun PreviewDialog(session: PreviewSession, selected: Set<String>, images: PhotoImages, importing: Boolean,
@@ -67,7 +67,7 @@ fun PreviewDialog(session: PreviewSession, selected: Set<String>, images: PhotoI
             HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), userScrollEnabled = !zoomed, key = { session.photos[it].id }) { index ->
                 val photo = session.photos[index]
                 val isCurrent = index == pager.currentPage
-                PreviewPhoto(photo, images, isCurrent, showNote = toolbar, onTap = { toolbar = !toolbar },
+                PreviewPhoto(photo, images, isCurrent, showActions = toolbar, onTap = { toolbar = !toolbar },
                     onZoomed = { if (isCurrent) zoomed = it }, onMetadata = { if (isCurrent) metadata = it })
             }
             if (toolbar) Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
@@ -88,7 +88,7 @@ fun PreviewDialog(session: PreviewSession, selected: Set<String>, images: PhotoI
                         }
                         Text(if (current.id in selected) "已选" else "选择", color = Color.White)
                     }
-                    Button(onClick = { onImport(current) }, enabled = !importing) { Text("导入") }
+                    Button(onClick = { onImport(current) }, enabled = !importing) { Text("导入此张") }
                 }
             }
         }
@@ -97,17 +97,17 @@ fun PreviewDialog(session: PreviewSession, selected: Set<String>, images: PhotoI
 }
 
 @Composable
-private fun PreviewPhoto(photo: Photo, images: PhotoImages, active: Boolean, showNote: Boolean, onTap: () -> Unit,
+private fun PreviewPhoto(photo: Photo, images: PhotoImages, active: Boolean, showActions: Boolean, onTap: () -> Unit,
     onZoomed: (Boolean) -> Unit, onMetadata: (Map<String, String>) -> Unit) {
     var retry by remember(photo.id) { mutableIntStateOf(0) }
     val load by produceState(PreviewLoad(), photo.id, retry, active) {
         value = PreviewLoad()
         try {
             val thumb = images.thumbnail(photo)
-            value = PreviewLoad(PreviewData(thumb, null), loading = active)
+            value = PreviewLoad(PreviewData(thumb), loading = active)
             if (active) value = PreviewLoad(images.preview(photo), loading = false)
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { value = PreviewLoad(PreviewData(value.data.bitmap, "预览不可用", retryAllowed = true), loading = false) }
+        catch (_: Exception) { value = PreviewLoad(PreviewData(value.data.bitmap, retryAllowed = true), loading = false) }
     }
     LaunchedEffect(load.data.metadata, active) { if (active) onMetadata(load.data.metadata) }
     Box(Modifier.fillMaxSize()) {
@@ -118,10 +118,11 @@ private fun PreviewPhoto(photo: Photo, images: PhotoImages, active: Boolean, sho
             TextButton(onClick = { retry++ }) { Text("重试", color = Color.White) }
         }
         if (load.loading) CircularProgressIndicator(Modifier.align(Alignment.Center).size(32.dp), color = Color.White, strokeWidth = 2.dp)
-        if (showNote && bitmap != null && load.data.note != null && !load.loading) Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 104.dp, start = 16.dp, end = 16.dp)
-            .background(Color.Black.copy(alpha = .7f), MaterialTheme.shapes.medium).padding(horizontal = 16.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(load.data.note!!, color = Color.White, style = MaterialTheme.typography.bodySmall)
-            if (load.data.retryAllowed) TextButton(onClick = { retry++ }) { Text("重试", color = Color.White) }
+        if (showActions && bitmap != null && load.data.retryAllowed && !load.loading) {
+            TextButton(onClick = { retry++ }, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 104.dp)
+                .background(Color.Black.copy(alpha = .7f), MaterialTheme.shapes.medium)) {
+                Text("重试预览", color = Color.White)
+            }
         }
     }
 }

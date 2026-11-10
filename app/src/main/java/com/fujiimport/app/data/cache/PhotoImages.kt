@@ -25,7 +25,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 
-data class PreviewData(val bitmap: Bitmap?, val note: String?, val metadata: Map<String, String> = emptyMap(), val retryAllowed: Boolean = false)
+data class PreviewData(val bitmap: Bitmap?, val metadata: Map<String, String> = emptyMap(), val retryAllowed: Boolean = false)
 
 class PhotoImages(
     private val context: Context,
@@ -75,18 +75,18 @@ class PhotoImages(
                 if (jpeg != null) {
                     try {
                         val result = fullImage(jpeg)
-                        return@withLock result.copy(note = "JPEG 伴生预览", metadata = emptyMap())
+                        return@withLock result.copy(metadata = emptyMap())
                     } catch (cancelled: CancellationException) { throw cancelled }
                     catch (error: Exception) { diagnostics.event("raw_companion_failed", error) }
                 }
                 val bitmap = thumbnail(photo)
-                return@withLock PreviewData(bitmap, if (bitmap == null) "预览不可用" else "相机缩略图", retryAllowed = bitmap == null)
+                return@withLock PreviewData(bitmap, retryAllowed = bitmap == null)
             }
             try { fullImage(photo) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
                 diagnostics.event("preview_failed", error)
-                PreviewData(thumbnail(photo), "高清预览不可用", retryAllowed = true)
+                PreviewData(thumbnail(photo), retryAllowed = true)
             }
         }
     }
@@ -111,7 +111,7 @@ class PhotoImages(
         }
         val bitmap = decode(file, 2560) ?: run { withContext(Dispatchers.IO) { file.delete() }; throw IOException("preview_decode") }
         val metadata = try { readExif(file) } catch (error: Exception) { diagnostics.event("exif_failed", error); emptyMap() }
-        return PreviewData(bitmap, null, metadata)
+        return PreviewData(bitmap, metadata)
     }
 
     suspend fun clear() = previewLock.withLock {

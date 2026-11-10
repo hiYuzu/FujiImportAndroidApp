@@ -2,6 +2,8 @@ package com.fujiimport.app.ui.preview
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
@@ -39,12 +41,12 @@ fun ZoomablePhoto(bitmap: Bitmap, photoId: String, onTap: () -> Unit, onZoomed: 
         val maxY = ((bitmap.height * fit * scale - viewport.height) / 2).coerceAtLeast(0f)
         return Offset(candidate.x.coerceIn(-maxX, maxX), candidate.y.coerceIn(-maxY, maxY))
     }
-    Image(bitmap.asImageBitmap(), contentDescription = "照片预览", contentScale = ContentScale.Fit,
-        modifier = Modifier.fillMaxSize().clipToBounds().onSizeChanged { viewport = it }
-            .pointerInput(photoId) {
-                detectTapGestures(onTap = { tapCallback() }, onDoubleTap = {
+    Box(Modifier.fillMaxSize().clipToBounds().onSizeChanged { viewport = it }
+            .pointerInput(photoId, viewport, bitmap) {
+                detectTapGestures(onTap = { tapCallback() }, onDoubleTap = { position ->
                     scale = if (scale > 1.01f) 1f else 3f
-                    offset = Offset.Zero
+                    val center = Offset(viewport.width / 2f, viewport.height / 2f)
+                    offset = if (scale == 1f) Offset.Zero else constrain((center - position) * (scale - 1f))
                     zoomCallback(scale > 1.01f)
                 })
             }
@@ -53,16 +55,23 @@ fun ZoomablePhoto(bitmap: Bitmap, photoId: String, onTap: () -> Unit, onZoomed: 
                     awaitFirstDown(requireUnconsumed = false)
                     do {
                         val event = awaitPointerEvent()
-                        if (event.changes.count { it.pressed } > 1 || scale > 1.01f) {
+                        if (event.changes.any { it.pressed && it.previousPressed } &&
+                            (event.changes.count { it.pressed } > 1 || scale > 1.01f)) {
                             val zoom = event.calculateZoom()
                             val pan = event.calculatePan()
+                            val anchor = event.calculateCentroid(useCurrent = false) - Offset(viewport.width / 2f, viewport.height / 2f)
+                            val previousScale = scale
                             scale = (scale * zoom).coerceIn(1f, 8f)
-                            offset = if (scale <= 1.01f) Offset.Zero else constrain(offset + pan)
+                            offset = if (scale <= 1.01f) Offset.Zero else constrain(anchor + (offset - anchor) * (scale / previousScale) + pan)
                             event.changes.forEach { if (it.positionChanged()) it.consume() }
                             zoomCallback(scale > 1.01f)
                         }
                     } while (event.changes.any { it.pressed })
                 }
-            }
-            .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y })
+            }) {
+        Image(bitmap.asImageBitmap(), contentDescription = "照片预览", contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize().graphicsLayer {
+                scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y
+            })
+    }
 }

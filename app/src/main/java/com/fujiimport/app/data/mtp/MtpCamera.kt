@@ -154,7 +154,7 @@ class MtpCamera(private val context: Context, private val diagnostics: Diagnosti
         if (candidate == null) {
             mutableState.value = ConnectionState(
                 phase = if (devices.isEmpty()) ConnectionPhase.DISCONNECTED else ConnectionPhase.FAILED,
-                message = if (devices.isEmpty()) "未连接相机" else "未发现照片传输接口，请检查相机 USB 模式",
+                message = if (devices.isEmpty()) "未连接相机" else "未发现照片传输接口",
                 diagnostics = description,
             )
             return
@@ -164,7 +164,7 @@ class MtpCamera(private val context: Context, private val diagnostics: Diagnosti
         } else if (candidate.deviceName in deniedDevices) {
             mutableState.value = mutableState.value.copy(phase = ConnectionPhase.DENIED, message = "USB 权限被拒绝")
         } else {
-            mutableState.value = mutableState.value.copy(phase = ConnectionPhase.PERMISSION, message = "请允许 USB 访问")
+            mutableState.value = mutableState.value.copy(phase = ConnectionPhase.PERMISSION, message = "等待 USB 授权")
             permissionDeviceId = candidate.deviceId
             val permission = PendingIntent.getBroadcast(
                 context, candidate.deviceId, Intent(permissionAction).setPackage(context.packageName),
@@ -174,7 +174,7 @@ class MtpCamera(private val context: Context, private val diagnostics: Diagnosti
                 usbManager.requestPermission(candidate, permission)
             } catch (error: Exception) {
                 permissionDeviceId = null
-                failure("USB 授权失败，请重新连接", error)
+                failure("USB 授权失败", error)
             }
         }
     }
@@ -219,7 +219,7 @@ class MtpCamera(private val context: Context, private val diagnostics: Diagnosti
                         opened = null
                         if (openingConnection === connection) openingConnection = null
                         mutableState.value = ConnectionState(ConnectionPhase.CONNECTED,
-                            if (storages.isEmpty()) "未发现存储，请检查 SD 卡" else "已连接",
+                            if (storages.isEmpty()) "未发现存储" else "已连接",
                             session.model, session.id, storages,
                             describe(listOf(device)) + "\n支持的读取操作：" + session.operations
                                 .filter { it in setOf(0x1001, 0x1004, 0x1005, 0x1007, 0x1008, 0x1009, 0x100a, 0x101b, 0x95c1) }
@@ -232,7 +232,7 @@ class MtpCamera(private val context: Context, private val diagnostics: Diagnosti
                     if (error is kotlinx.coroutines.CancellationException) throw error
                     withContext(Dispatchers.Main.immediate) {
                         diagnostics.event("connection_failed_$stage", error)
-                        failure("无法打开相机，请关闭其他导入应用后重连", error)
+                        failure("无法打开相机", error)
                     }
                 } finally {
                     if (openingConnection === openedConnection) openingConnection = null

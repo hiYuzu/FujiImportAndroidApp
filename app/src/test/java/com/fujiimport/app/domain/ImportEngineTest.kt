@@ -55,6 +55,8 @@ class ImportEngineTest {
         assertEquals(listOf("pending:1", "pending:2"), store.published)
         assertTrue(store.discarded.isEmpty())
         assertTrue(store.records.all { it.second == ImportResult.SUCCESS })
+        assertEquals(setOf(testPhoto(1).id, testPhoto(2).id), result.completedIds)
+        assertEquals("pending:2", result.recentFiles.single().uri)
     }
     @Test fun corruptFileIsCleanedAndDoesNotStopRemainingFiles() = runTest {
         val store = Store().apply { copyFailure = 1 to IOException("corrupt") }
@@ -62,6 +64,7 @@ class ImportEngineTest {
         assertEquals(1, result.failed); assertEquals(2, result.succeeded); assertEquals(3, result.processed)
         assertEquals(listOf("pending:1"), store.discarded)
         assertEquals(listOf("pending:2", "pending:3"), store.published)
+        assertEquals(setOf(testPhoto(2).id, testPhoto(3).id), result.completedIds)
     }
     @Test fun confirmedDuplicatesAreSkippedWithoutCreatingFiles() = runTest {
         val store = Store().apply { duplicates = setOf(1) }
@@ -69,6 +72,7 @@ class ImportEngineTest {
         assertEquals(1, result.skipped); assertEquals(1, result.succeeded)
         assertEquals(listOf(2), store.created)
         assertTrue(store.records.contains(1 to ImportResult.SKIPPED))
+        assertEquals(setOf(testPhoto(1).id, testPhoto(2).id), result.completedIds)
     }
     @Test fun sizeMismatchNeverPublishesAndIsCleaned() = runTest {
         val store = Store().apply { publishFailure = 1 }
@@ -89,6 +93,8 @@ class ImportEngineTest {
         val result = ImportEngine(store, {}).execute(listOf(testPhoto(1), testPhoto(2)))
         assertEquals(2, result.failed); assertEquals(listOf(1), store.created)
         assertTrue(store.published.isEmpty())
+        assertEquals("导入已停止", result.title)
+        assertNotNull(result.stopReason)
     }
     @Test fun cancellationDiscardsCurrentFileAndKeepsSuccessfulFiles() = runTest {
         val store = Store().apply { blockCopy = 2 }
@@ -99,6 +105,8 @@ class ImportEngineTest {
         assertEquals(listOf("pending:2"), store.discarded)
         assertEquals(1, latest!!.succeeded); assertEquals(1, latest!!.processed); assertEquals(2, latest!!.cancelled)
         assertEquals(ImportPhase.CANCELLED, latest!!.phase)
+        assertEquals(setOf(testPhoto(1).id), latest!!.completedIds)
+        assertEquals("pending:1", latest!!.recentFiles.single().uri)
         assertTrue(store.records.contains(2 to ImportResult.CANCELLED))
     }
     @Test fun cancellationDuringCreationStillCleansCreatedRow() = runTest {

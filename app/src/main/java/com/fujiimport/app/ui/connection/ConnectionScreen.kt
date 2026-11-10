@@ -38,16 +38,13 @@ fun ConnectionScreen(state: ConnectionState, modifier: Modifier, retry: () -> Un
             ConnectionPhase.DISCONNECTED -> "未连接相机"
             ConnectionPhase.DETACHED -> "相机已断开"
             ConnectionPhase.DENIED -> "需要 USB 授权"
-            ConnectionPhase.FAILED -> "连接失败"
+            ConnectionPhase.FAILED -> state.message
             ConnectionPhase.PERMISSION -> "等待授权"
             ConnectionPhase.DETECTING -> "识别中"
             ConnectionPhase.CONNECTING -> "连接中"
             ConnectionPhase.CONNECTED -> "已连接"
-        }, style = MaterialTheme.typography.headlineSmall)
-        if (state.phase == ConnectionPhase.FAILED || state.phase == ConnectionPhase.PERMISSION) {
-            Text(state.message, Modifier.widthIn(max = 360.dp), textAlign = TextAlign.Center,
-                color = if (state.phase == ConnectionPhase.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        }, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center,
+            color = if (state.phase == ConnectionPhase.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
         if (busy) CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp)
         else Button(onClick = retry, modifier = Modifier.widthIn(max = 200.dp).fillMaxWidth()) {
             Text(if (state.phase == ConnectionPhase.DENIED) "授权" else "重新检测")

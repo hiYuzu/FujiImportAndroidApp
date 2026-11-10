@@ -82,14 +82,6 @@ fun SettingsDialog(repository: FujiRepository, connection: ConnectionState, reco
                             }
                         }
                         message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
-                        SettingsSection("保存位置") {
-                            listOf("照片" to "Pictures/FujiImport", "RAW / 其他 HEIF" to "Download/FujiImport").forEach { (label, path) ->
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text(path, style = MaterialTheme.typography.bodyMedium)
-                                }
-                            }
-                        }
                         Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
                             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -100,7 +92,7 @@ fun SettingsDialog(repository: FujiRepository, connection: ConnectionState, reco
                                     scope.launch {
                                         busy = true
                                         try { repository.images.clear(); size = repository.images.diskSize(); message = "缓存已清理" }
-                                        catch (_: Exception) { message = "清理失败，请重试" }
+                                        catch (_: Exception) { message = "清理失败" }
                                         finally { busy = false }
                                     }
                                 }, enabled = !busy && !importing) { Text(if (busy) "清理中…" else "清理") }
@@ -126,7 +118,7 @@ fun SettingsDialog(repository: FujiRepository, connection: ConnectionState, reco
                                             val intent = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_STREAM, uri)
                                                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             context.startActivity(Intent.createChooser(intent, "导出日志"))
-                                        } catch (_: Exception) { message = "日志导出失败，请重试" }
+                                        } catch (_: Exception) { message = "日志导出失败" }
                                     }
                                 }) { Text("导出日志") }
                             }
@@ -147,7 +139,6 @@ fun SettingsDialog(repository: FujiRepository, connection: ConnectionState, reco
                                 Text("${resultLabel(record.result)} · ${formatBytes(record.size)} · ${dateTimeLabel(record.importedAt)}",
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 record.capturedAt?.let { Text("拍摄 ${dateTimeLabel(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                record.message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                                 HorizontalDivider(Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
                             } }
                         }

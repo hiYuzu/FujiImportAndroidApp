@@ -49,7 +49,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fujiimport.app.R
 import com.fujiimport.app.domain.ConnectionPhase
-import com.fujiimport.app.domain.ImportPhase
 import com.fujiimport.app.ui.connection.ConnectionScreen
 import com.fujiimport.app.ui.gallery.PhotoTile
 import com.fujiimport.app.ui.importing.ImportDialog
@@ -80,8 +79,11 @@ fun FujiImportApp(viewModel: GalleryViewModel = viewModel()) {
                     Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 20.dp, vertical = 8.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(if (selection.active) "已选 ${selection.ids.size} 张" else "Fuji Import",
+                                Text(if (selection.active) "已选 ${selection.ids.size} 个" else "Fuji Import",
                                     style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                val hiddenCount = selection.ids.size - gallery.photos.count { it.id in selection.ids }
+                                if (selection.active && hiddenCount > 0) Text("其他存储 · $hiddenCount 个",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 if (!selection.active && connection.phase == ConnectionPhase.CONNECTED) {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Box(Modifier.size(6.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
@@ -90,10 +92,13 @@ fun FujiImportApp(viewModel: GalleryViewModel = viewModel()) {
                                     }
                                 }
                             }
+                            if (progress?.isRunning == false) IconButton(onClick = { viewModel.showImport.value = true }) {
+                                Icon(painterResource(R.drawable.ic_import), "查看导入结果")
+                            }
                             if (selection.active) {
                                 val allSelected = gallery.photos.isNotEmpty() && gallery.photos.all { it.id in selection.ids }
                                 TextButton(onClick = { if (allSelected) viewModel.clearVisibleSelection() else viewModel.selectAll() }) {
-                                    Text(if (allSelected) "取消全选" else "全选")
+                                    Text(if (allSelected) "取消当前选择" else "全选当前列表")
                                 }
                                 IconButton(onClick = viewModel::clearSelection) {
                                     Icon(painterResource(R.drawable.ic_close), "退出选择")
@@ -144,29 +149,21 @@ fun FujiImportApp(viewModel: GalleryViewModel = viewModel()) {
                                 }
                             }
                             if (scan.scanning) LinearProgressIndicator(Modifier.fillMaxWidth())
-                            scan.message?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                            if (gallery.photos.isNotEmpty()) scan.message?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                             if (scan.unreadable > 0) Text("${scan.unreadable} 项无法读取", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                         }
-                        progress?.let { current ->
+                        progress?.takeIf { it.isRunning }?.let { current ->
                             Surface(onClick = { viewModel.showImport.value = true }, shape = MaterialTheme.shapes.medium,
                                 color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                                 Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        Icon(painterResource(when {
-                                            current.phase == ImportPhase.FINISHED && current.failed == 0 -> R.drawable.ic_check
-                                            !current.isRunning && current.failed > 0 -> R.drawable.ic_info
-                                            else -> R.drawable.ic_import
-                                        }), null, Modifier.size(20.dp), tint = if (!current.isRunning && current.failed > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-                                        Text(when (current.phase) {
-                                            ImportPhase.RUNNING -> "导入中"
-                                            ImportPhase.CANCELLING -> "取消中"
-                                            ImportPhase.FINISHED -> "导入完成"
-                                            ImportPhase.CANCELLED -> "已取消"
-                                        }, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
-                                        Text(if (!current.isRunning && current.failed > 0) "${current.failed} 项失败" else "${current.processed} / ${current.total}",
-                                            style = MaterialTheme.typography.bodySmall, color = if (!current.isRunning && current.failed > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Icon(painterResource(R.drawable.ic_import), null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Text(current.title, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                                        Text("${current.processed} / ${current.total}", style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                    if (current.isRunning) LinearProgressIndicator(progress = { current.fraction }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp))
+                                    if (current.fileBytes == null) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 10.dp))
+                                    else LinearProgressIndicator(progress = { current.fraction }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp))
                                 }
                             }
                         }
@@ -189,9 +186,10 @@ fun FujiImportApp(viewModel: GalleryViewModel = viewModel()) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (scan.scanning) CircularProgressIndicator(Modifier.size(32.dp), strokeWidth = 2.dp)
                         else Icon(painterResource(R.drawable.ic_photo), null, Modifier.size(44.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(when { scan.scanning -> "读取中"; connection.storages.isEmpty() -> "未发现存储，请检查 SD 卡"; else -> "暂无照片" },
+                        Text(when { scan.scanning -> "读取中"; scan.message != null -> scan.message.orEmpty(); connection.storages.isEmpty() -> "未发现存储"; storage != null -> "当前存储暂无照片"; else -> "暂无支持的照片" },
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (!scan.scanning) TextButton(onClick = repo::refresh, enabled = progress?.isRunning != true) { Text("刷新") }
+                        if (storage != null) TextButton(onClick = { viewModel.storageFilter.value = null }) { Text("查看全部") }
+                        if (!scan.scanning) TextButton(onClick = repo::refresh, enabled = progress?.isRunning != true) { Text("重试扫描") }
                     }
                 }
             } else {
@@ -216,6 +214,6 @@ fun FujiImportApp(viewModel: GalleryViewModel = viewModel()) {
         preview?.let { session -> PreviewDialog(session, selection.ids, repo.images, progress?.isRunning == true,
             onDismiss = { viewModel.preview.value = null }, onSelect = viewModel::toggle, onImport = viewModel::importPhoto) }
         if (showSettings) SettingsDialog(repo, connection, records, progress?.isRunning == true, onDismiss = { viewModel.showSettings.value = false })
-        if (showImport && progress != null) ImportDialog(progress!!, repo::cancelImport, onDismiss = { viewModel.showImport.value = false })
+        if (showImport && progress != null) ImportDialog(progress!!, { repo.cancelImport() }, onDismiss = { viewModel.showImport.value = false })
     }
 }

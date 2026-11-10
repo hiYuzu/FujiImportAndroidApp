@@ -67,6 +67,7 @@ class FujiRepository(private val context: Context) {
     private var markerJob: Job? = null
     private var queued: List<Photo> = emptyList()
     @Volatile private var cancelRequested = false
+    private var cancellationReason: String? = null
     @Volatile private var scanGeneration = 0
     private var rescanAfterImport = false
     private var uiAttached = false
@@ -91,7 +92,7 @@ class FujiRepository(private val context: Context) {
             } catch (error: Exception) {
                 diagnostics.event("local_initialization_failed", error)
                 ready.completeExceptionally(error)
-                mutablePhotos.value = PhotoListState(message = "本地存储初始化失败，请检查平板空间后重启应用")
+                mutablePhotos.value = PhotoListState(message = "本地存储初始化失败")
             }
         }
         scope.launch {
@@ -111,7 +112,7 @@ class FujiRepository(private val context: Context) {
                 if (state.phase == ConnectionPhase.CONNECTED) {
                     if (progress.value?.isRunning == true) rescanAfterImport = true else refresh()
                 }
-                else if (progress.value?.isRunning == true) cancelImport()
+                else if (progress.value?.isRunning == true) cancelImport("相机已断开")
             }
         }
         camera.start()
@@ -122,6 +123,7 @@ class FujiRepository(private val context: Context) {
         val generation = ++scanGeneration
         refreshImportMarkers()
         val previous = scanJob
+        val retainPhotos = photos.value.photos.isNotEmpty()
         previous?.cancel()
         mutablePhotos.value = mutablePhotos.value.copy(scanning = true, message = null, unreadable = 0)
         scanJob = scope.launch {
@@ -132,7 +134,7 @@ class FujiRepository(private val context: Context) {
                 val unreadable = camera.scan { batch ->
                     if (generation == scanGeneration) {
                         batch.forEach { discovered[it.id] = it }
-                        mutablePhotos.update { current ->
+                        if (!retainPhotos) mutablePhotos.update { current ->
                             if (generation == scanGeneration) PhotoListState(discovered.values.toList(), scanning = true) else current
                         }
                     }
@@ -141,7 +143,7 @@ class FujiRepository(private val context: Context) {
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
                 diagnostics.event("scan_failed", error)
-                if (generation == scanGeneration) mutablePhotos.value = mutablePhotos.value.copy(message = "照片扫描未完成，可刷新重试或查看诊断")
+                if (generation == scanGeneration) mutablePhotos.value = mutablePhotos.value.copy(message = "照片扫描未完成")
             } finally {
                 if (generation == scanGeneration) mutablePhotos.value = mutablePhotos.value.copy(scanning = false)
             }
@@ -153,6 +155,7 @@ class FujiRepository(private val context: Context) {
         if (photos.any { it.sessionId != camera.state.value.sessionId }) return
         queued = photos.distinctBy { it.id }
         cancelRequested = false
+        cancellationReason = null
         mutableProgress.value = ImportProgress(queued.size)
         importing.value = true
         markerJob?.cancel()
@@ -167,7 +170,7 @@ class FujiRepository(private val context: Context) {
     fun failQueuedImport() {
         val total = progress.value?.total ?: queued.size
         mutableProgress.value = ImportProgress(total, failed = total, processed = total,
-            phase = ImportPhase.FINISHED, errors = listOf("无法启动导入任务，请确认相机已连接并保持应用在前台后重试"))
+            phase = ImportPhase.FINISHED, errors = listOf("无法启动导入任务"))
         queued = emptyList()
         importing.value = false
     }
@@ -183,7 +186,10 @@ class FujiRepository(private val context: Context) {
                 scanJob?.cancelAndJoin()
                 writer.resetNameIndex()
                 ImportEngine(writer, { value ->
-                    mutableProgress.value = if (cancelRequested && value.phase == ImportPhase.RUNNING) value.copy(phase = ImportPhase.CANCELLING) else value
+                    mutableProgress.value = value.copy(
+                        phase = if (cancelRequested && value.phase == ImportPhase.RUNNING) ImportPhase.CANCELLING else value.phase,
+                        stopReason = cancellationReason ?: value.stopReason,
+                    )
                 }, { diagnostics.event("import_record_failed") }).execute(queue)
             } catch (cancelled: CancellationException) {
                 if (progress.value?.isRunning == true) mutableProgress.value = progress.value?.let {
@@ -194,7 +200,7 @@ class FujiRepository(private val context: Context) {
                 diagnostics.event("import_task_failed", error)
                 mutableProgress.value = progress.value?.let {
                     it.copy(phase = ImportPhase.FINISHED, failed = it.failed + it.total - it.processed,
-                        processed = it.total, currentName = null, errors = it.errors + "导入任务失败，请检查本地存储和诊断")
+                        processed = it.total, currentName = null, errors = it.errors + "导入任务失败")
                 }
             } finally {
                 importing.value = false
@@ -211,10 +217,11 @@ class FujiRepository(private val context: Context) {
         if (cancelRequested) importJob?.cancel()
     }
 
-    fun cancelImport() {
+    fun cancelImport(reason: String? = null) {
         if (progress.value?.isRunning != true) return
         cancelRequested = true
-        mutableProgress.value = progress.value?.copy(phase = ImportPhase.CANCELLING)
+        cancellationReason = cancellationReason ?: reason
+        mutableProgress.value = progress.value?.copy(phase = ImportPhase.CANCELLING, stopReason = cancellationReason)
         importJob?.cancel()
     }
 
